@@ -30,9 +30,9 @@ $keywords = array(
   'FORM_ID',
 );
 
-// Keeps a record of the hooks that have been processed so that they are
+// Keeps a record of the functions/hooks that have been processed so that they are
 // not duplicated.
-$hooks = array();
+$functions = $hooks = array();
 
 // Create snippets.
 if (!is_dir('snippets')) {
@@ -41,10 +41,12 @@ if (!is_dir('snippets')) {
 chdir('snippets');
 
 // Create snippets/drupal.
+/*
 if (!is_dir('drupal')) {
   mkdir('drupal');
 }
 chdir('drupal');
+ */
 
 // Do API files first so that there are not duplicate hooks().
 recurse($api, TRUE);
@@ -87,23 +89,25 @@ function recurse($dir, $hook = FALSE) {
  *  The contents of the file to be processed.
  */
 function parse($data) {
+  global $functions;
   // Match functions.
   preg_match_all('/(?:void|bool|boolean|float|int|resource|string|mixed|array|object|function) +([A-Za-z0-9_]+)(\([^{\n]+)/', $data, $matches, PREG_SET_ORDER);
-
   foreach ($matches as $func) {
     // Don't include constructs, private functions, or theme functions.
     if (!preg_match('`^__`', $func[1]) && !preg_match('`^_`', $func[1]) && !preg_match('`theme_`', $func[1])) {
+      if (!array_key_exists($func[1], $functions)) {
+        list($process, $hook_func) = check_function($func);
 
-      list($process, $hook_func) = check_function($func);
-
-      // Only process functions that have are allowed.
-      if ($process) {
-        print $func[1] . $func[2] ."\n";
-        // Get and write the snippet.
-        $snippet = snippet($func, $hook_func);
-        $f = fopen('./'. $func[1] .'.snippet', 'w+');
-        fwrite($f, $snippet . "\n");
-        fclose($f);
+        // Only process functions that have are allowed.
+        if ($process) {
+          print $func[1] . $func[2] ."\n";
+          // Get and write the snippet.
+          $snippet = snippet($func, $hook_func);
+          $f = fopen('./drupal.snippets', 'a+');
+          fwrite($f, $snippet . "\n");
+          fclose($f);
+          $functions[$func[1]] = $func[1];
+        }
       }
     }
   }
@@ -187,9 +191,10 @@ function process_hook_function($func) {
 
   $func[1] = '`Filename()`'. substr($func[1], 4);
 
+  $snippet_name = $func_name;
   // Replace keywords with tabstops.
   foreach ($keywords as $keyword) {
-   if (strpos($func_name, $keyword)) {
+    if (strpos($func_name, $keyword)) {
       $func_name = str_replace($keyword, '${' . $tabstop . ': /* ' . $keyword . ' */}', $func_name);
       $tabstop++;
       $func[1] = str_replace($keyword, '${' . $tabstop . ': /* ' . $keyword . ' */}', $func[1]);
@@ -198,12 +203,13 @@ function process_hook_function($func) {
   }
 
   return <<<DOC
-/**
- * Implementation of $func_name().
- */
-function $func[1]$func[2] {
-  \${{$tabstop}:/* Your code here */}
-}
+snippet $snippet_name
+\t/**
+\t* Implementation of $func_name().
+\t*/
+\tfunction $func[1]$func[2] {
+\t \${{$tabstop}:/* Your code here */}
+\t}
 DOC;
 }
 
@@ -247,6 +253,7 @@ function process_function($func) {
   $func[2] = '(' . implode(', ', $args) . ')';
 
   return <<<DOC
-$func[1]$func[2]
+snippet $func_name
+\t$func[1]$func[2]
 DOC;
 }
