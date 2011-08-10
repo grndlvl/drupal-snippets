@@ -11,6 +11,7 @@ and then run the generation script and it will create snippets for that module a
 
 nce you get that up and running, just put the 'drupal' directory in your ~/.vim/snippets (or wherever you install your Vim scripts to).
 Run the following:
+
 > php generate.php [path to Drupal]
 
 If you installed this as a [pathogen](https://github.com/tpope/vim-pathogen) bundle then your done :).
