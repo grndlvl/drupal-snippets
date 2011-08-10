@@ -17,24 +17,31 @@ $keywords = array(
 // not duplicated.
 $hooks = array();
 
-// Create bundle
+// Create snippets.
 if (!is_dir('snippets')) {
   mkdir('snippets');
 }
 chdir('snippets');
 
-// Create snippets
+// Create snippets/drupal.
 if (!is_dir('drupal')) {
   mkdir('drupal');
 }
 chdir('drupal');
 
-// Do API files first that there are not duplicate hooks().
+// Do API files first so that there are not duplicate hooks().
 recurse($api, TRUE);
 // Do EVERYTHING else.
 recurse($api);
 
-// Recurse the given directory for source code files.
+/**
+ * Recurse the given directory for source code files.
+ *
+ * @param string $dir
+ *  The directory to recursively process.
+ * @param bool $hook
+ *  If set to TRUE ONLY process hook_functions.
+ */
 function recurse($dir, $hook = FALSE) {
   global $files;
   $handle = opendir($dir);
@@ -63,36 +70,14 @@ function recurse($dir, $hook = FALSE) {
  *  The contents of the file to be processed.
  */
 function parse($data) {
-  global $hooks;
   // Match functions.
   preg_match_all('/(?:void|bool|boolean|float|int|resource|string|mixed|array|object|function) +([A-Za-z0-9_]+)(\([^{\n]+)/', $data, $matches, PREG_SET_ORDER);
 
   foreach ($matches as $func) {
     // Don't include constructs, private functions, or theme functions.
     if (!preg_match('`^__`', $func[1]) && !preg_match('`^_`', $func[1]) && !preg_match('`theme_`', $func[1])) {
-      // All functions should be processed unless otherwise noted.
-      $process = TRUE;
 
-      // Check to see if the current function is a hook.
-      $hook_func = preg_match('`^hook_`', $func[1]);
-      if (!$hook_func) {
-        switch ($func[1]) {
-          // Do not process theme functions.
-          case 'theme':
-            if (!strpos($func[2], '$hook')) {
-              $process = FALSE;
-              break;
-            }
-          default:
-            // Check if the current function is a hook implementation,
-            // if it is then do not process it.
-            foreach ($hooks as $hook) {
-              if (strpos(preg_replace('`^([A-Za-z]*)_`', '', $func[1]), $hook)) {
-                $process = FALSE;
-              }
-            }
-        }
-      }
+      list($process, $hook_func) = check_function($func);
 
       // Only process functions that have are allowed.
       if ($process) {
@@ -103,14 +88,52 @@ function parse($data) {
         fwrite($f, $snippet . "\n");
         fclose($f);
       }
-
-      // Record hook functions so that implementations are not processed.
-      if ($hook_func) {
-        $hook = str_replace('hook_', '', $func[1]);
-        $hooks[$hook] = $hook;
-      }
     }
   }
+}
+
+/**
+ * Checks the function to see if it should be process and if it's a hook.
+ *
+ * @param array $func
+ *  The contents of the function.
+ *
+ * @return array
+ */
+function check_function($func) {
+  global $hooks;
+
+  // All functions should be processed unless otherwise noted.
+  $process = TRUE;
+
+  // Check to see if the current function is a hook.
+  $hook_func = preg_match('`^hook_`', $func[1]);
+  if (!$hook_func) {
+    switch ($func[1]) {
+      // Do not process theme functions.
+      case 'theme':
+        if (!strpos($func[2], '$hook')) {
+          $process = FALSE;
+          break;
+        }
+      default:
+        // Check if the current function is a hook implementation,
+        // if it is then do not process it.
+        foreach ($hooks as $hook) {
+          if (strpos(preg_replace('`^([A-Za-z]*)_`', '', $func[1]), $hook)) {
+            $process = FALSE;
+          }
+        }
+    }
+  }
+
+  // Record hook functions so that implementations are not processed.
+  if ($hook_func) {
+    $hook = str_replace('hook_', '', $func[1]);
+    $hooks[$hook] = $hook;
+  }
+
+  return array($process, $hook_func);
 }
 
 /**
@@ -120,6 +143,8 @@ function parse($data) {
  *  The contents of the function.
  * @param $hook_func
  *  Determines if the function being processed is a hook or not.
+ *
+ * @return string
  */
 function snippet($func, $hook_func) {
   if ($hook_func) {
@@ -129,7 +154,12 @@ function snippet($func, $hook_func) {
 }
 
 /**
+ * Processes a hook function.
  *
+ * @param array $func
+ *  The contents of the function.
+ *
+ * @return string
  */
 function process_hook_function($func) {
   global $keywords;
@@ -161,7 +191,12 @@ DOC;
 }
 
 /**
+ * Processes a non-hook function.
  *
+ * @aram array $func
+ *  The contents of the function.
+ *
+ * @return string
  */
 function process_function($func) {
   $tabstop = 1;
