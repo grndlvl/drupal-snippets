@@ -12,7 +12,10 @@ and then run the generation script and it will create snippets for that module a
 nce you get that up and running, just put the 'drupal' directory in your ~/.vim/snippets (or wherever you install your Vim scripts to).
 Run the following:
 
-> php generate.php [path to Drupal]
+`php generate.php [path to Drupal]`
 
 If you installed this as a [pathogen](https://github.com/tpope/vim-pathogen) bundle then your done :).
 Otherwise, move the "drupal" folder into [Vim scripts directory]/snippets(usually ~/.vim/snippets)
+
+## Credits
+Original code from [Steven Wittens'](http://acko.net/) original TextMate bundle script over [here](http://acko.net/blog/updated-drupal-textmate-bundle).
