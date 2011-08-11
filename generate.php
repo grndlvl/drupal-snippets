@@ -28,6 +28,8 @@ $files = '/\.(inc|module|php)$/';
 $keywords = array(
   'HOOK',
   'FORM_ID',
+  'MODULE',
+  'DELTA',
 );
 
 // Keeps a record of the functions/hooks that have been processed so that they are
@@ -72,10 +74,10 @@ function recurse($dir, $hook = FALSE) {
     if (preg_match($files, $file)) {
       // We only ever want to do api files once.
       if ($hook && preg_match('/\.(api\.php)$/', $file)) {
-        parse(file_get_contents($path));
+        parse(file_get_contents($path), $file);
       }
       elseif (!$hook) {
-        parse(file_get_contents($path));
+        parse(file_get_contents($path), $file);
       }
     }
   }
@@ -83,15 +85,21 @@ function recurse($dir, $hook = FALSE) {
 }
 
 /**
- * Parse the given data for functions.
- *
- * @param $data
- *  The contents of the file to be processed.
- */
-function parse($data) {
+* Parse the given data for functions.
+*
+* @param $data
+* The contents of the file to be processed.
+*/
+function parse($data, $file) {
   global $functions;
   // Match functions.
   preg_match_all('/(?:void|bool|boolean|float|int|resource|string|mixed|array|object|function) +([A-Za-z0-9_]+)(\([^{\n]+)/', $data, $matches, PREG_SET_ORDER);
+
+  if (!empty($matches)) {
+    $f = fopen('./drupal.snippets', 'a+');
+    fwrite($f, '# ' . strtoupper($file) . "\n");
+    fclose($f);
+  }
   foreach ($matches as $func) {
     // Don't include constructs, private functions, or theme functions.
     if (!preg_match('`^__`', $func[1]) && !preg_match('`^_`', $func[1]) && !preg_match('`theme_`', $func[1])) {
@@ -100,12 +108,13 @@ function parse($data) {
 
         // Only process functions that have are allowed.
         if ($process) {
-          print $func[1] . $func[2] ."\n";
           // Get and write the snippet.
-          $snippet = snippet($func, $hook_func);
-          $f = fopen('./drupal.snippets', 'a+');
-          fwrite($f, $snippet . "\n");
-          fclose($f);
+          if ($snippet = snippet($func, $hook_func)) {
+            print $func[1] . $func[2] ."\n";
+            $f = fopen('./drupal.snippets', 'a+');
+            fwrite($f, $snippet . "\n");
+            fclose($f);
+          }
           $functions[$func[1]] = $func[1];
         }
       }
@@ -208,7 +217,7 @@ snippet $snippet_name
 \t* Implementation of $func_name().
 \t*/
 \tfunction $func[1]$func[2] {
-\t \${{$tabstop}:/* Your code here */}
+\t  \${{$tabstop}:/* Your code here */}
 \t}
 DOC;
 }
@@ -244,10 +253,14 @@ function process_function($func) {
         $argument = substr($argument, 0, -1);
         break;
     }
-
-    // Replace arguments with tabstops.
-    $args[] .= '${' . $tabstop . ': /* ' . $argument . ' */ }';
-    $tabstop++;
+    if ($argument != '') {
+      // Replace arguments with tabstops.
+      $args[] .= '${' . $tabstop . ': /* ' . $argument . ' */ }';
+      $tabstop++;
+    }
+    else {
+      return;
+    }
   }
 
   $func[2] = '(' . implode(', ', $args) . ')';
