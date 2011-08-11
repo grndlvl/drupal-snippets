@@ -93,7 +93,7 @@ function recurse($dir, $hook = FALSE) {
 function parse($data, $file) {
   global $functions;
   // Match functions.
-  preg_match_all('/(?:void|bool|boolean|float|int|resource|string|mixed|array|object|function) +([A-Za-z0-9_]+)(\([^{\n]+)/', $data, $matches, PREG_SET_ORDER);
+  preg_match_all('/(?:void|bool|boolean|float|int|resource|string|mixed|array|object|function) +([A-Za-z0-9_]+)(\([^{\n]+) \{/', $data, $matches, PREG_SET_ORDER);
 
   if (!empty($matches)) {
     $f = fopen('./drupal.snippets', 'a+');
@@ -267,6 +267,6 @@ function process_function($func) {
 
   return <<<DOC
 snippet $func_name
-\t$func[1]$func[2]
+\t$func[1]$func[2]\${{$tabstop}}
 DOC;
 }
