@@ -30,11 +30,14 @@ $keywords = array(
   'FORM_ID',
   'MODULE',
   'DELTA',
+  'N',
 );
 
 // Keeps a record of the functions/hooks that have been processed so that they are
 // not duplicated.
 $functions = $hooks = array();
+
+$code_message = 'Your code here';
 
 // Create snippets.
 if (!is_dir('snippets')) {
@@ -96,9 +99,7 @@ function parse($data, $file) {
   preg_match_all('/(?:void|bool|boolean|float|int|resource|string|mixed|array|object|function) +([A-Za-z0-9_]+)(\([^{\n]+) \{/', $data, $matches, PREG_SET_ORDER);
 
   if (!empty($matches)) {
-    $f = fopen('./drupal.snippets', 'a+');
-    fwrite($f, '# ' . strtoupper($file) . "\n");
-    fclose($f);
+    write_snippet('# ' . strtoupper($file));
   }
   foreach ($matches as $func) {
     // Don't include constructs, private functions, or theme functions.
@@ -111,15 +112,25 @@ function parse($data, $file) {
           // Get and write the snippet.
           if ($snippet = snippet($func, $hook_func)) {
             print $func[1] . $func[2] ."\n";
-            $f = fopen('./drupal.snippets', 'a+');
-            fwrite($f, $snippet . "\n");
-            fclose($f);
+            write_snippet('snippet ' . $func[1] . PHP_EOL . $snippet);
           }
           $functions[$func[1]] = $func[1];
         }
       }
     }
   }
+}
+
+/**
+ * Writes to the snippet file.
+ *
+ * @param string $snippet
+ *
+ */
+function write_snippet($snippet) {
+  $f = fopen('./drupal.snippets', 'a+');
+  fwrite($f, $snippet . "\n");
+  fclose($f);
 }
 
 /**
@@ -196,28 +207,29 @@ function process_hook_function($func) {
   $tabstop = 1;
 
   // Set the name of the function.
-  $func_name = $func[1];
+  $snippet_name = $func_name = $func[1];
 
   $func[1] = '`Filename()`'. substr($func[1], 4);
 
-  $snippet_name = $func_name;
   // Replace keywords with tabstops.
   foreach ($keywords as $keyword) {
     if (strpos($func_name, $keyword)) {
-      $func_name = str_replace($keyword, '${' . $tabstop . ': /* ' . $keyword . ' */}', $func_name);
+      $func_name = str_replace($keyword, '${' . $tabstop . ':' . $keyword . '}', $func_name);
       $tabstop++;
-      $func[1] = str_replace($keyword, '${' . $tabstop . ': /* ' . $keyword . ' */}', $func[1]);
+      $func[1] = str_replace($keyword, '${' . $tabstop . ':' . $keyword . '}', $func[1]);
       $tabstop++;
     }
   }
 
+  // Get function expansion.
+  $expansion = expand_hook_function($snippet_name, $tabstop);
+
   return <<<DOC
-snippet $snippet_name
 \t/**
 \t* Implementation of $func_name().
 \t*/
 \tfunction $func[1]$func[2] {
-\t  \${{$tabstop}:/* Your code here */}
+\t$expansion
 \t}
 DOC;
 }
@@ -255,7 +267,7 @@ function process_function($func) {
     }
     if ($argument != '') {
       // Replace arguments with tabstops.
-      $args[] .= '${' . $tabstop . ': /* ' . $argument . ' */ }';
+      $args[] .= '${' . $tabstop . ':' . $argument . '}';
       $tabstop++;
     }
     else {
@@ -265,8 +277,88 @@ function process_function($func) {
 
   $func[2] = '(' . implode(', ', $args) . ')';
 
-  return <<<DOC
-snippet $func_name
-\t$func[1]$func[2]\${{$tabstop}}
-DOC;
+  return "\t$func[1]$func[2]\${{$tabstop}}";
+}
+
+/**
+ * Expand hook functions.
+ *
+ * @param string $func_name
+ *  The name of the function.
+ * @param int $tabstop
+ *  The current tabstop position.
+ *
+ * @return string
+ */
+function expand_hook_function($func_name, $tabstop) {
+  global $code_message;
+  $exp = array();
+  switch ($func_name) {
+    case 'hook_help':
+      $exp[] = 'switch ($path) {';
+      $exp[] = "  case '\${" . $tabstop++ . ":path}':";
+      $exp[] = "    return '<p>' . t('\${" . $tabstop++ . ":/* Text */}') . '</p>'";
+      $exp[] = '    break;';
+      $exp[] = '}';
+      break;
+    case 'hook_menu':
+      $first_tabstop = $tabstop++;
+      $exp[] = '$${' . $first_tabstop . ':items} = array();';
+      $exp[] = '';
+      $exp[] = '// Put your menu items here.';
+      $exp[] = "$${$first_tabstop}['\${" . $tabstop++ . ":path}'] = array(";
+      $exp[] = '  ${' . $tabstop++ . ":/*  $code_message */}";
+      $exp[] = ');';
+      $exp[] = '';
+      $exp[] = "return $${$first_tabstop};";
+      break;
+    case 'hook_permission':
+      $exp[] = 'return array(';
+      $exp[] = "  'title' => t('\${" . $tabstop++ . ":/* Title */}')";
+      $exp[] = "  'description' => t('\${" . $tabstop++ . ":/* Text */}')";
+      $exp[] = ');';
+      break;
+    case 'hook_theme':
+      $exp[] = '${' . $tabstop++ . ':theme_function} = array(';
+      $exp[] = "  'arguments' => array(\${" . $tabstop++ . ':/* Theme function arguments */}),';
+      $exp[] = '  ${' . $tabstop++ . ':/* See http://api.drupal.org/api/drupal/modules--system--system.api.php/function/hook_theme/7 for options */}';
+      $exp[] = '  ),';
+      $exp[] = ');';
+      break;
+    case 'hook_update_N':
+      $exp[] = '$ret = array();';
+      $exp[] = '${' . $tabstop++ . ":/* $code_message */}";
+      $exp[] = 'return $ret';
+      break;
+    case 'hook_user_operations':
+      $exp[] = '$operations = array(';
+      $exp[] = "'\${" . $tabstop++ . ":operation}' => array(";
+      $exp[] = "  'label' => t('\${" . $tabstop++ . ": /* Label */}')";
+      $exp[] = "  'callback' => t('\${" . $tabstop++ . ":callback}')";
+      $exp[] = 'return $operations;';
+    default:
+      // @TODO: Create a way for people to tie into this.
+      $exp[] = '${' . $tabstop++ . ":/* $code_message */}";
+      break;
+  }
+  if (!empty($exp)) {
+    ksort($exp);
+
+    // Add spaces to all code.
+    foreach ($exp as $key => $value) {
+      if ($value != '') {
+        $exp[$key] = '  ' . $exp[$key];
+      }
+    }
+    return implode(PHP_EOL . "\t", $exp);
+  }
+
+  return FALSE;
+}
+
+/**
+ *
+ */
+function form_elements() {
+
 }
