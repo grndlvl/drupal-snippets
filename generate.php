@@ -39,6 +39,16 @@ $functions = $hooks = array();
 
 $code_message = 'Your code here';
 
+/**
+ * @TODO
+ *
+ * Had a long informative message here but wasn't committed
+ * and acctidenally deleted. I will put back soon.
+ */
+if (is_file('./extra/extra_snippets.php')) {
+  require_once './extra/extra_snippets.php';
+}
+
 // Create snippets.
 if (!is_dir('snippets')) {
   mkdir('snippets');
@@ -57,6 +67,9 @@ chdir('drupal');
 recurse($api, TRUE);
 // Do EVERYTHING else.
 recurse($api);
+
+// Add custom snippets.
+custom_snippets();
 
 /**
  * Recurse the given directory for source code files.
@@ -361,4 +374,21 @@ function expand_hook_function($func_name, $tabstop) {
  */
 function form_elements() {
 
+}
+
+/**
+ *
+ */
+function custom_snippets() {
+  write_snippet('# Custom snippets');
+  $snips = array();
+  $snips['**'][] = '/**';
+  $snips['**'][] = ' * ${1:Your documentation}';
+  $snips['**'][] = ' */';
+
+  // @TODO Get extra snipps.
+  foreach ($snips as $key => $value) {
+    print $key . PHP_EOL;
+    write_snippet("snippet $key" . PHP_EOL . "\t" . implode(PHP_EOL . "\t", $value));
+  }
 }
