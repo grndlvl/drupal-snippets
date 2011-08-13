@@ -161,7 +161,7 @@ function check_function($func) {
         // Check if the current function is a hook implementation,
         // if it is then do not process it.
         foreach ($hooks as $hook) {
-          if (strpos(preg_replace('`^([A-Za-z]*)_`', '', $func[1]), $hook)) {
+          if (preg_replace('`^([A-Za-z]*)_`', '', $func[1]) == $hook) {
             $process = FALSE;
           }
         }
