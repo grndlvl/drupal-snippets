@@ -239,8 +239,8 @@ function process_hook_function($func) {
 
   return <<<DOC
 \t/**
-\t* Implementation of $func_name().
-\t*/
+\t * Implementation of $func_name().
+\t */
 \tfunction $func[1]$func[2] {
 \t$expansion
 \t}
